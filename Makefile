@@ -58,7 +58,7 @@ else
 	-dnf install -y python3 python3.9 python3.10 python3.11 python3.12 python3.13
 endif
 	# ensure tox is available. It will take care of other testing requirements
-	$(PYTHON) -m pip install --user tox
+	$(PYTHON) -m pip install tox
 
 .PHONY: test-release
 test-release: SOURCE = $(shell find dist -regex '.*/podman-[0-9][0-9\.]*.tar.gz' -print)

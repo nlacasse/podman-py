@@ -455,6 +455,98 @@ class ContainersTestCase(unittest.TestCase):
 
         self.assertTrue(adapter.called_once)
 
+    @requests_mock.Mocker()
+    def test_checkpoint_report(self, mock):
+        """Test checkpoint method returning a JSON report (export=False)."""
+        checkpoint_report = {
+            "Id": "87e1325c82424e49a00abdd4de08009eb76c7de8d228426a9b8af9318ced5ecd",
+            "RuntimeDuration": 12345,
+            "CreatedTime": "2023-08-25T10:00:00Z"
+        }
+        adapter = mock.post(
+            tests.LIBPOD_URL + "/containers/"
+            "87e1325c82424e49a00abdd4de08009eb76c7de8d228426a9b8af9318ced5ecd/checkpoint"
+            "?export=False&fileLocks=True&ignoreRootFS=False&ignoreVolumes=False&keep=False"
+            "&leaveRunning=False&preCheckpoint=False&printStats=True&tcpEstablished=False"
+            "&withPrevious=False",
+            status_code=200,
+            json=checkpoint_report,
+        )
+        container = Container(attrs=FIRST_CONTAINER, client=self.client.api)
+        result = container.checkpoint(
+            export=False,
+            fileLocks=True,
+            printStats=True
+        )
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result, checkpoint_report)
+        self.assertTrue(adapter.called_once)
+
+    @requests_mock.Mocker()
+    def test_checkpoint_export(self, mock):
+        """Test checkpoint method returning exported tar stream (export=True)."""
+        tarball = b'Checkpoint tar data...'
+        body = io.BytesIO(tarball)
+        adapter = mock.post(
+            tests.LIBPOD_URL + "/containers/"
+            "87e1325c82424e49a00abdd4de08009eb76c7de8d228426a9b8af9318ced5ecd/checkpoint"
+            "?export=True&fileLocks=False&ignoreRootFS=True&ignoreVolumes=True&keep=True"
+            "&leaveRunning=False&preCheckpoint=False&printStats=False&tcpEstablished=False"
+            "&withPrevious=False",
+            status_code=200,
+            body=body,
+        )
+        container = Container(attrs=FIRST_CONTAINER, client=self.client.api)
+        result = container.checkpoint(
+            export=True,
+            ignoreRootFS=True,
+            ignoreVolumes=True,
+            keep=True
+        )
+        
+        # Collect all chunks from the iterator
+        chunks = list(result)
+        reconstructed = b''.join(chunks)
+        self.assertEqual(reconstructed, tarball)
+        self.assertTrue(adapter.called_once)
+
+    @requests_mock.Mocker()
+    def test_restore(self, mock):
+        """Test restore method."""
+        restore_response = {
+            "Id": "87e1325c82424e49a00abdd4de08009eb76c7de8d228426a9b8af9318ced5ecd",
+            "RuntimeDuration": 54321,
+            "RestoredTime": "2023-08-25T11:00:00Z"
+        }
+        encoded_response = json.JSONEncoder().encode(restore_response)
+        
+        adapter = mock.post(
+            tests.LIBPOD_URL + "/containers/"
+            "87e1325c82424e49a00abdd4de08009eb76c7de8d228426a9b8af9318ced5ecd/restore"
+            "?fileLocks=True&ignoreRootFS=False&ignoreStaticIP=True&ignoreStaticMAC=False"
+            "&ignoreVolumes=False&import=True&keep=False&name=restored_container"
+            "&printStats=True&tcpEstablished=False",
+            status_code=200,
+            body=encoded_response,
+        )
+        
+        tarball = b'Checkpoint restore data...'
+        body = io.BytesIO(tarball)
+        
+        container = Container(attrs=FIRST_CONTAINER, client=self.client.api)
+        result = container.restore(
+            fileLocks=True,
+            ignoreStaticIP=True,
+            import_checkpoint=True,
+            name="restored_container",
+            printStats=True,
+            data=body,
+        )
+        
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result, restore_response)
+        self.assertTrue(adapter.called_once)
+
 
 if __name__ == '__main__':
     unittest.main()

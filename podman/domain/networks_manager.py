@@ -72,7 +72,10 @@ class NetworksManager(Manager):
             headers={"Content-Type": "application/json"},
         )
         response.raise_for_status()
-        return self.prepare_model(attrs=response.json())
+        print(f"NLAC: podman client name={name} got response={response.json()}")
+        model = self.prepare_model(attrs=response.json())
+        print(f"NLAC: podman client model.id={model.id}")
+        return model
 
     def _prepare_ipam(self, data: dict[str, Any], ipam: dict[str, Any]):
         if "Driver" in ipam:

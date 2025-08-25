@@ -117,6 +117,7 @@ class Manager(ABC):
 
         # Refresh existing PodmanResource.
         if isinstance(attrs, PodmanResource):
+            print("NLAC prepare_model isinstance(PodmanResource)=true")
             attrs.client = self.client
             attrs.podman_client = self.podman_client
             attrs.collection = self
@@ -124,6 +125,7 @@ class Manager(ABC):
 
         # Instantiate new PodmanResource from Mapping[str, Any]
         if isinstance(attrs, abc.Mapping):
+            print(f"NLAC prepare_model isinstance(abc.Mapping)=true id={attrs.get('id')}")
             # TODO Determine why pylint is reporting typing.Type not callable
             # pylint: disable=not-callable
             return self.resource(

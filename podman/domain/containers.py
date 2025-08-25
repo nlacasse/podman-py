@@ -5,7 +5,7 @@ import logging
 import shlex
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import suppress
-from typing import Any, Optional, Union
+from typing import IO, Any, Optional, Union
 
 import requests
 
@@ -90,7 +90,7 @@ class Container(PodmanResource):
         """
         raise NotImplementedError()
 
-    def commit(self, repository: str = None, tag: str = None, **kwargs) -> Image:
+    def commit(self, repository: str = None, tag: str = None, **kwargs) -> bool:
         """Save container to given repository.
 
         Args:
@@ -118,9 +118,142 @@ class Container(PodmanResource):
         }
         response = self.client.post("/commit", params=params)
         response.raise_for_status()
-
         body = response.json()
         return ImagesManager(client=self.client).get(body["Id"])
+
+    def checkpoint(
+        self,
+        *,
+        export: bool = False,
+        chunk_size: int = api.DEFAULT_CHUNK_SIZE,
+        fileLocks: bool = False,
+        ignoreRootFS: bool = False,
+        ignoreVolumes: bool = False,
+        keep: bool = False,
+        leaveRunning: bool = False,
+        preCheckpoint: bool = False,
+        printStats: bool = False,
+        tcpEstablished: bool = False,
+        withPrevious: bool = False,
+    ) -> Iterable[bytes] | dict[str, Any]:
+        """Checkpoint a container.
+
+        Args:
+            export:	Export the checkpoint image to a tar.gz.
+            chunk_size: If `export` is True, then this controls the size of the
+                chunks that the checkpoint image is split into.
+            fileLocks: Checkpoint a container with filelocks.
+            ignoreRootFS: Do not include root file-system changes when
+                exporting. Can only be used with export.
+            ignoreVolumes: Do not include associated volumes. Can only be used
+                with export.
+            keep: Keep all temporary checkpoint files.
+            leaveRunning: Leave the container running after writing checkpoint
+                to disk.
+            preCheckpoint: Dump the container's memory information only, leaving
+                the container running. Only works on runc 1.0-rc or higher.
+            printStats: Add checkpoint statistics to the returned
+                CheckpointReport.
+            tcpEstablished: Checkpoint a container with established TCP
+                connections.
+            withPrevious: Check out the container with previous criu image files
+                in pre-dump. Only works on runc 1.0-rc or higher.
+
+        Returns:
+            If `export` is True, returns an Iterable[bytes] with the contents of
+            the checkpoint images, otherwise a CheckpointReport.
+
+        Raises:
+            APIError: When service reports error.
+            NotFound: When Container not found.
+        """
+
+        params = {
+            "export": export,
+            "fileLocks": fileLocks,
+            "ignoreRootFS": ignoreRootFS,
+            "ignoreVolumes": ignoreVolumes,
+            "keep": keep,
+            "leaveRunning": leaveRunning,
+            "preCheckpoint": preCheckpoint,
+            "printStats": printStats,
+            "tcpEstablished": tcpEstablished,
+            "withPrevious": withPrevious,
+        }
+
+        response = self.client.post(f"/containers/{self.id}/checkpoint", params=params)
+        response.raise_for_status()
+        
+        if not export:
+            return response.json()
+
+        yield from response.iter_content(chunk_size=chunk_size)
+
+
+    def restore(
+        self,
+        *,
+        fileLocks: bool = False,
+        ignoreRootFS: bool = False,
+        ignoreStaticIP: bool = False,
+        ignoreStaticMAC: bool = False,
+        ignoreVolumes: bool = False,
+        import_checkpoint: bool = False,  # `import` is a reserved word.
+        data: Optional[IO] = None,
+        keep: bool = False,
+        name: str | None = None,
+        pod: str | None = None,
+        printStats: bool = False,
+        tcpEstablished: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Restore a container from a checkpoint.
+
+        Args:
+            fileLocks: Restore a container with file locks.
+            ignoreRootFS: Do not include root file-system changes when
+                exporting. Can only be used with import.
+            ignoreStaticIP: Ignore IP address if set statically.
+            ignoreStaticMAC: Ignore MAC address if set statically.
+            ignoreVolumes: Do not restore associated volumes. Can only be used
+                with import.
+            import: Import the restore from a checkpoint tar.gz.
+            data: If `import` is True, then `data` must contain the checkpoint
+                image bytes.
+            keep: Keep all temporary checkpoint files.
+            name: The name of the container when restored from a tar. can only
+                be used with import.
+            pod: The pod to restore into.
+            printStats: Add restore statistics to the returned RestoreReport.
+            tcpEstablished: Restore a container with established TCP
+                connections.
+
+        Returns:
+            A RestoreReport.
+
+        Raises:
+            APIError: When service reports error.
+            NotFound: When Container not found.
+        """
+
+        params = {
+            "fileLocks": fileLocks,
+            "ignoreRootFS": ignoreRootFS,
+            "ignoreStaticIP": ignoreStaticIP,
+            "ignoreStaticMAC": ignoreStaticMAC,
+            "ignoreVolumes": ignoreVolumes,
+            "import": import_checkpoint,
+            "keep": keep,
+            "name": name,
+            "pod": pod,
+            "printStats": printStats,
+            "tcpEstablished": tcpEstablished,
+        }
+
+        response = self.client.post(f"/containers/{self.id}/restore", params=params, data=data)
+        response.raise_for_status()
+
+        return response.json()
 
     def diff(self) -> list[dict[str, int]]:
         """Report changes of a container's filesystem.
