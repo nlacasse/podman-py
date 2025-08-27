@@ -31,7 +31,7 @@ class Network(PodmanResource):
     def id(self):  # pylint: disable=invalid-name
         """str: Returns the identifier of the network."""
         with suppress(KeyError):
-            return self.attrs["Id"]
+            return self.attrs["id"]
 
         with suppress(KeyError):
             sha256 = hashlib.sha256(self.attrs["name"].encode("ascii"))
@@ -44,7 +44,7 @@ class Network(PodmanResource):
         """list[Container]: Returns list of Containers connected to network."""
         with suppress(KeyError):
             container_manager = ContainersManager(client=self.client)
-            return [container_manager.get(ident) for ident in self.attrs["Containers"].keys()]
+            return [container_manager.get(ident) for ident in self.attrs["containers"].keys()]
         return []
 
     @property
